@@ -8,7 +8,7 @@ struct HyperTyperApp: App {
 
     var body: some Scene {
         WindowGroup {
-            TypingView()
+            UserSelectionView()
                 .frame(minWidth: 800, minHeight: 600)
                 .environment(\.managedObjectContext, persistenceController.container.viewContext)
         }

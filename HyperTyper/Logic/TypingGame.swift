@@ -17,21 +17,7 @@ enum GameMode: Equatable {
     }
 }
 
-struct KeyStat: Codable {
-    var char: String
-    var attempts: Int = 0
-    var errors: Int = 0
-    
-    var errorRate: Double {
-        return attempts > 0 ? Double(errors) / Double(attempts) : 0.0
-    }
-}
-
-struct KeyEvent: Equatable {
-    let id = UUID()
-    let char: String
-    let isCorrect: Bool
-}
+// KeyStat and KeyEvent are now in Models/User.swift
 
 class TypingGame: ObservableObject {
     @Published var currentLayoutType: LayoutType = .qwerty

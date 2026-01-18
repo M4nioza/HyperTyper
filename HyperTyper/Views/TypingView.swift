@@ -2,6 +2,7 @@
 import SwiftUI
 
 struct TypingView: View {
+    @ObservedObject var userManager: UserManager
     @StateObject var game = TypingGame()
     
     @State private var showSummary = false
@@ -9,6 +10,27 @@ struct TypingView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 40) {
+                // Header (User info)
+                HStack {
+                    if let user = userManager.currentUser {
+                        HStack {
+                            Text(user.avatar).font(.title2)
+                            Text(user.name).font(.headline)
+                        }
+                        .padding(8)
+                        .background(Material.bar)
+                        .cornerRadius(8)
+                    }
+                    Spacer()
+                    Button("Change Player") {
+                        withAnimation {
+                            userManager.currentUser = nil
+                        }
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.top)
+                
                 // Active Game Area
                 VStack(spacing: 20) {
                     // Word Display
@@ -116,7 +138,7 @@ struct TypingView: View {
                         
                         if !game.keyStats.isEmpty {
                             Button("Train Weakest Keys") {
-                                game.setMode(.adaptive(focusedKeys: game.worstKeys))
+                                 game.setMode(.adaptive(focusedKeys: game.worstKeys))
                             }
                         }
                     } label: {
@@ -140,11 +162,16 @@ struct TypingView: View {
                 }
             }
             .sheet(isPresented: $showSummary) {
-                SessionSummaryView(game: game, isPresented: $showSummary)
+                SessionSummaryView(game: game, userManager: userManager, isPresented: $showSummary)
             }
             .onChange(of: game.isGameActive) { active in
                 if !active && (game.timeRemaining == 0 && game.mode != .levels) {
                      showSummary = true
+                }
+            }
+            .onAppear {
+                if let user = userManager.currentUser {
+                    game.currentLevel = user.currentLevel
                 }
             }
         }
@@ -158,6 +185,7 @@ struct TypingView: View {
 
 struct SessionSummaryView: View {
     @ObservedObject var game: TypingGame
+    @ObservedObject var userManager: UserManager
     @Binding var isPresented: Bool
     
     var body: some View {
@@ -201,13 +229,22 @@ struct SessionSummaryView: View {
             Button("Close") {
                 isPresented = false
                 if case .timed = game.mode {
-                    game.setMode(.levels) // Reset to levels or keep same?
+                    game.setMode(.levels) 
                 }
             }
             .keyboardShortcut(.defaultAction)
         }
         .padding(40)
         .frame(minWidth: 400)
+        .onAppear {
+            let sessionStats = UserStats(
+                totalWPM: game.wpm,
+                totalAccuracy: game.accuracy,
+                gamesPlayed: 1,
+                keyStats: game.keyStats
+            )
+            userManager.updateUserStats(sessionStats, level: game.currentLevel)
+        }
     }
 }
     
