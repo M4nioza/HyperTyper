@@ -1,9 +1,3 @@
-//
-//  HyperTyperApp.swift
-//  HyperTyper
-//
-//  Created by Mariusz Murawski on 18/01/2026.
-//
 
 import SwiftUI
 import CoreData
@@ -14,7 +8,8 @@ struct HyperTyperApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            TypingView()
+                .frame(minWidth: 800, minHeight: 600)
                 .environment(\.managedObjectContext, persistenceController.container.viewContext)
         }
     }
