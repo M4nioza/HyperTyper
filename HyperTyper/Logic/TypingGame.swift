@@ -94,7 +94,7 @@ class TypingGame: ObservableObject {
             timer?.cancel()
             
         case .timed(let duration):
-            targetWords = wordGenerator.getWords(count: 200, for: currentLayout, level: 7) // All words
+            targetWords = wordGenerator.getWords(count: 200, for: currentLayout, level: currentLevel) // Use current level
             timeRemaining = duration
             startTimer()
             
@@ -158,7 +158,7 @@ class TypingGame: ObservableObject {
                 // Infinite scroll for timed mode
                 if currentWordIndex >= targetWords.count - 5 {
                      if case .timed = mode {
-                         let moreWords = wordGenerator.getWords(count: 50, for: currentLayout, level: 7)
+                         let moreWords = wordGenerator.getWords(count: 50, for: currentLayout, level: currentLevel)
                          targetWords.append(contentsOf: moreWords)
                      } else if currentWordIndex >= targetWords.count {
                          finishGame() // End of lesson

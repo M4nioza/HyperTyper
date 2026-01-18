@@ -147,8 +147,8 @@ struct TypingView: View {
                 }
                 
                 ToolbarItem(placement: .navigation) {
-                    if case .levels = game.mode {
-                        Stepper(value: $game.currentLevel, in: 1...7) {
+                    if let user = userManager.currentUser, case .levels = game.mode {
+                        Stepper(value: $game.currentLevel, in: 1...user.maxUnlockedLevel) {
                              Text("Level")
                         }
                         .labelsHidden()
@@ -188,21 +188,74 @@ struct SessionSummaryView: View {
     @ObservedObject var userManager: UserManager
     @Binding var isPresented: Bool
     
+    @State private var levelStat: LevelStat?
+    @State private var unlockedNewLevel = false
+    
     var body: some View {
         VStack(spacing: 20) {
-            Text("Session Complete").font(.title)
+            Text(unlockedNewLevel ? "Level Up! 🔓" : "Session Summary")
+                .font(.largeTitle)
+                .bold()
+                .foregroundColor(unlockedNewLevel ? .green : .primary)
             
             HStack(spacing: 40) {
-                VStack {
-                    Text("\(Int(game.wpm))").font(.system(size: 40, weight: .bold))
-                    Text("WPM").foregroundColor(.secondary)
+                VStack(spacing: 10) {
+                    Text("Current Score")
+                        .font(.headline)
+                    Text("WPM: \(Int(game.wpm))")
+                    Text("Acc: \(Int(game.accuracy))%")
                 }
-                VStack {
-                    Text("\(Int(game.accuracy))%").font(.system(size: 40, weight: .bold))
-                    Text("Accuracy").foregroundColor(.secondary)
+                .padding()
+                .background(Color.secondary.opacity(0.1))
+                .cornerRadius(8)
+                
+                if let stat = levelStat {
+                    VStack(spacing: 10) {
+                        Text("Best Score")
+                            .font(.headline)
+                            .foregroundColor(.orange)
+                        
+                        Text("WPM: \(Int(stat.bestWPM))")
+                        Text("Acc: \(Int(stat.bestAccuracy))%")
+                    }
+                    .padding()
+                    .background(Color.orange.opacity(0.1))
+                    .cornerRadius(8)
+                    
+                    VStack(spacing: 10) {
+                        Text("Trend")
+                            .font(.headline)
+                        if game.wpm >= stat.lastWPM {
+                             Image(systemName: "arrow.up.right.circle.fill")
+                                .foregroundColor(.green)
+                                .font(.largeTitle)
+                        } else {
+                             Image(systemName: "arrow.down.right.circle.fill")
+                                .foregroundColor(.red)
+                                .font(.largeTitle)
+                        }
+                    }
                 }
             }
-            .padding()
+            
+            if let stat = levelStat {
+                 HStack(spacing: 20) {
+                     VStack {
+                         Text("Total on Level")
+                         Text(timeString(from: stat.totalTime))
+                             .font(.title3).monospacedDigit()
+                     }
+                     
+                     VStack {
+                         Text("Total Playtime")
+                         if let user = userManager.currentUser {
+                             Text(timeString(from: user.stats.totalTimePlayed))
+                                 .font(.title3).monospacedDigit()
+                         }
+                     }
+                 }
+                 .foregroundColor(.secondary)
+            }
             
             if !game.worstKeys.isEmpty {
                 VStack(alignment: .leading) {
@@ -235,7 +288,7 @@ struct SessionSummaryView: View {
             .keyboardShortcut(.defaultAction)
         }
         .padding(40)
-        .frame(minWidth: 400)
+        .frame(minWidth: 500)
         .onAppear {
             let sessionStats = UserStats(
                 totalWPM: game.wpm,
@@ -243,8 +296,39 @@ struct SessionSummaryView: View {
                 gamesPlayed: 1,
                 keyStats: game.keyStats
             )
-            userManager.updateUserStats(sessionStats, level: game.currentLevel)
+            
+            // Calculate duration (approximate based on start time if needed, 
+            // but TypingGame measures intervals. We need strict duration.)
+            // For now, let's estimate from charsTyped / avg speed or just pass elapsed time from Game?
+            // TypingGame tracks `timeRemaining` for Timed mode. For levels, it doesn't track `duration`.
+            // Let's rely on startTime vs Now.
+            var duration: TimeInterval = 0
+            if let start = game.startTime {
+                duration = Date().timeIntervalSince(start)
+            }
+            
+            let previousMax = userManager.currentUser?.maxUnlockedLevel ?? 1
+            
+            userManager.updateUserStats(sessionStats, level: game.currentLevel, duration: duration)
+            
+            // Fetch updated stats
+            if let user = userManager.currentUser {
+                levelStat = user.stats.levelStats[game.currentLevel]
+                if user.maxUnlockedLevel > previousMax {
+                    unlockedNewLevel = true
+                }
+            }
         }
+    }
+    
+    func timeString(from interval: TimeInterval) -> String {
+        let hours = Int(interval) / 3600
+        let minutes = (Int(interval) % 3600) / 60
+        let seconds = Int(interval) % 60
+        if hours > 0 {
+             return String(format: "%dh %02dm", hours, minutes)
+        }
+        return String(format: "%02dm %02ds", minutes, seconds)
     }
 }
     

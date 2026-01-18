@@ -1,10 +1,17 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct UserSelectionView: View {
     @StateObject var userManager = UserManager()
     @State private var showingAddUser = false
     @State private var newName = ""
     @State private var selectedAvatar = "🐱"
+    
+    // New State for Features
+    @State private var selectedUserForStats: User?
+    @State private var showExporter = false
+    @State private var showImporter = false
+    @State private var exportUrl: URL? = nil
     
     let avatars = ["🐱", "🐶", "🦁", "🐼", "🦊", "🐸", "🦄", "🤖", "👽", "👻"]
     
@@ -31,27 +38,56 @@ struct UserSelectionView: View {
                     ScrollView {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 150))], spacing: 20) {
                             ForEach(userManager.users) { user in
-                                Button {
-                                    withAnimation {
-                                        userManager.selectUser(user)
-                                    }
-                                } label: {
-                                    VStack {
-                                        Text(user.avatar).font(.system(size: 60))
-                                        Text(user.name)
-                                            .font(.title3)
-                                            .fontWeight(.medium)
-                                            .foregroundColor(.primary)
-                                        Text("Level \(user.currentLevel)")
-                                            .font(.caption)
+                                ZStack(alignment: .topTrailing) {
+                                    Button {
+                                        withAnimation {
+                                            userManager.selectUser(user)
+                                        }
+                                    } label: {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            HStack {
+                                                Text(user.avatar).font(.system(size: 40))
+                                                VStack(alignment: .leading) {
+                                                    Text(user.name)
+                                                        .font(.headline)
+                                                        .foregroundColor(.primary)
+                                                    Text("Level \(user.currentLevel)")
+                                                        .font(.caption)
+                                                        .foregroundColor(.secondary)
+                                                }
+                                                Spacer()
+                                            }
+                                            
+                                            Divider()
+                                            
+                                            Group {
+                                                Text("WPM: \(Int(user.stats.totalWPM))")
+                                                Text("Accuracy: \(Int(user.stats.totalAccuracy))%")
+                                                Text("Time: \(timeString(from: user.stats.totalTimePlayed))")
+                                            }
+                                            .font(.caption2)
                                             .foregroundColor(.secondary)
+                                        }
+                                        .padding()
+                                        .frame(width: 160, height: 180)
+                                        .background(Material.regular) // Reverted to Material
+                                        .cornerRadius(12) // Slightly smaller radius
+                                        .shadow(radius: 2) // Subtle shadow
                                     }
-                                    .frame(width: 140, height: 160)
-                                    .background(Material.regular) // Reverted to Material
-                                    .cornerRadius(12) // Slightly smaller radius
-                                    .shadow(radius: 2) // Subtle shadow
+                                    .buttonStyle(.plain)
+                                    
+                                    Button(action: {
+                                        selectedUserForStats = user
+                                    }) {
+                                        Image(systemName: "chart.xyaxis.line")
+                                            .foregroundColor(.blue)
+                                            .padding(6)
+                                            .background(Circle().fill(Color.white))
+                                            .shadow(radius: 1)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .padding(8)
                                 }
-                                .buttonStyle(.plain)
                             }
                             
                             // Add User Card
@@ -66,7 +102,7 @@ struct UserSelectionView: View {
                                         .font(.headline)
                                         .foregroundColor(.secondary)
                                 }
-                                .frame(width: 140, height: 160)
+                                .frame(width: 160, height: 180)
                                 .background(Material.regular)
                                 .cornerRadius(12)
                                 .overlay(
@@ -78,8 +114,40 @@ struct UserSelectionView: View {
                         }
                         .padding()
                     }
+                    
+                    HStack {
+                         Button("Export Data") {
+                             if let url = userManager.exportData() {
+                                 exportUrl = url
+                                 showExporter = true
+                             }
+                         }
+                         Button("Import Data") {
+                             showImporter = true
+                         }
+                    }
+                    .padding(.bottom)
                 }
                 .background(Color(NSColor.windowBackgroundColor)) // Native background
+                .sheet(item: $selectedUserForStats) { user in
+                    StatisticsView(user: user, isPresented: Binding(
+                        get: { selectedUserForStats != nil },
+                        set: { if !$0 { selectedUserForStats = nil } }
+                    ))
+                }
+                .fileExporter(isPresented: $showExporter, document: ExportDocument(fileURL: exportUrl ?? URL(fileURLWithPath: "/")), contentType: .data, defaultFilename: "HyperTyper_Users.exp") { result in
+                     if case .success = result { print("Exported") }
+                }
+                .fileImporter(isPresented: $showImporter, allowedContentTypes: [.data], allowsMultipleSelection: false) { result in
+                    switch result {
+                    case .success(let urls):
+                        if let url = urls.first {
+                            userManager.importData(from: url)
+                        }
+                    case .failure(let error):
+                        print("Import failed: \(error.localizedDescription)")
+                    }
+                }
                 .sheet(isPresented: $showingAddUser) {
                     NavigationStack {
                         VStack(spacing: 30) {
@@ -129,5 +197,31 @@ struct UserSelectionView: View {
                 }
             }
         }
+    }
+    func timeString(from interval: TimeInterval) -> String {
+        let hours = Int(interval) / 3600
+        let minutes = (Int(interval) % 3600) / 60
+        if hours > 0 {
+             return String(format: "%dh %02dm", hours, minutes)
+        }
+        return String(format: "%02dm", minutes)
+    }
+}
+
+// Helper for Export
+struct ExportDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.data] }
+    var fileURL: URL
+    
+    init(fileURL: URL) {
+        self.fileURL = fileURL
+    }
+    
+    init(configuration: ReadConfiguration) throws {
+        self.fileURL = URL(fileURLWithPath: "/")
+    }
+    
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        return try FileWrapper(url: fileURL, options: .immediate)
     }
 }
