@@ -16,9 +16,18 @@ struct TypingView: View {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 12) {
                                 ForEach(Array(game.targetWords.enumerated()), id: \.offset) { index, word in
+                                    let inputForWord: String = {
+                                        if index < game.submittedInputs.count {
+                                            return game.submittedInputs[index]
+                                        } else if index == game.currentWordIndex {
+                                            return game.currentInput
+                                        }
+                                        return ""
+                                    }()
+                                    
                                     WordView(
                                         word: word,
-                                        input: index == game.currentWordIndex ? game.currentInput : "",
+                                        input: inputForWord,
                                         state: getWordState(index)
                                     )
                                     .id(index)
@@ -235,11 +244,13 @@ struct WordView: View {
     
     func colorForChar(at index: Int, wordLength: Int) -> Color {
         switch state {
-        case .completed: return .green
         case .pending: return .secondary
-        case .active:
+        case .active, .completed:
+            // Check against input, even if completed
             if index >= wordLength {
-                return .red // Extra chars always wrong
+                 // Extra chars (if we were to show them, but here we iterate over word chars usually)
+                 // The loop in body iterates over displayWord which accounts for extra chars
+                return .red 
             }
             if index < input.count {
                 let inputIndex = input.index(input.startIndex, offsetBy: index)
@@ -247,6 +258,13 @@ struct WordView: View {
                 let targetStr = String(word[word.index(word.startIndex, offsetBy: index)])
                 return charStr == targetStr ? .green : .red
             } else {
+                // If completed but missing chars (skipped), maybe standard color or red?
+                // Request says "wrong typed", implies explicit errors.
+                // But missing chars in completed word are errors too.
+                // If state is completed and we are missing chars, mark them red?
+                if state == .completed {
+                    return .red.opacity(0.5) // Mark missing chars in completed word
+                }
                 return .primary
             }
         }

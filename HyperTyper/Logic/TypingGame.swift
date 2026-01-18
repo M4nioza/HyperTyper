@@ -42,6 +42,7 @@ class TypingGame: ObservableObject {
     @Published var targetWords: [String] = []
     @Published var currentWordIndex: Int = 0
     @Published var currentInput: String = ""
+    @Published var submittedInputs: [String] = [] // Track history
     @Published var isGameActive: Bool = false
     @Published var isShiftPressed: Bool = false
     @Published var lastKeyEvent: KeyEvent?
@@ -91,6 +92,7 @@ class TypingGame: ObservableObject {
         // Reset State
         currentWordIndex = 0
         currentInput = ""
+        submittedInputs = []
         startTime = nil
         charsTyped = 0
         totalErrors = 0
@@ -159,6 +161,10 @@ class TypingGame: ObservableObject {
         // Special Handling for Space
         if char == " " || char == "\n" || char == "\r" {
             let currentTarget = targetWords[currentWordIndex]
+            
+            // Record what was typed for this word (correct or not)
+            submittedInputs.append(currentInput)
+            
             if currentInput == currentTarget {
                 currentWordIndex += 1
                 currentInput = ""
